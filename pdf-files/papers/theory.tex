@@ -1,0 +1,162 @@
+\documentclass[11pt]{article}
+
+% Поддержка русского языка и математических символов
+\usepackage[utf8]{inputenc}
+\usepackage[T2A]{fontenc}
+\usepackage[russian,english]{babel}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{geometry}
+\geometry{a4paper, margin=1.2in}
+\usepackage{hyperref}
+
+% Определение математических окружений
+\newtheorem{assumption}{Условие}
+\newtheorem{theorem}{Теорема}
+\newtheorem{lemma}{Лемма}
+
+% Макросы для удобства
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+\newcommand{\inner}[2]{\left\langle #1, #2 \right\rangle}
+
+\begin{document}
+
+\selectlanguage{russian}
+
+\title{\textbf{Теоретический анализ сходимости Proximal GaLore Adam}}
+\author{}
+\date{}
+\maketitle
+
+\section{Базовые предположения (Assumptions)}
+
+Для анализа сходимости алгоритма в невыпуклом случае мы опираемся на следующие стандартные условия:
+
+\begin{assumption}[$L$-гладкость]
+\label{assum:smoothness}
+Функция потерь $f(w)$ дифференцируема и ее градиент является $L$-липшицевым:
+\begin{equation}
+    \norm{\nabla f(w) - \nabla f(w')} \le L \norm{w - w'}, \quad \forall w, w'
+\end{equation}
+\end{assumption}
+
+\begin{assumption}[Ограниченность снизу]
+\label{assum:bounded_below}
+Существует глобальный минимум $f^*$:
+\begin{equation}
+    f(w) \ge f^* > -\infty, \quad \forall w
+\end{equation}
+\end{assumption}
+
+\begin{assumption}[Ограниченная дисперсия батчей]
+\label{assum:variance}
+Стохастический градиент $g_t$ является несмещенной оценкой с ограниченной дисперсией:
+\begin{equation}
+    \E[g_t] = \nabla f(w_t), \quad \E[\norm{g_t - \nabla f(w_t)}^2] \le \sigma^2
+\end{equation}
+\end{assumption}
+
+\begin{assumption}[Ограниченность градиентов]
+\label{assum:bounded_gradients}
+Норма стохастического градиента строго ограничена: $\norm{g_t} \le G$.
+\end{assumption}
+
+\section{Главная Теорема}
+
+Определим градиент после SVT-проекции как $\tilde{g}_t = g_t + \epsilon_t$, где $\epsilon_t$ --- матрица ошибки отсечения. Матрицу предобуславливания Adam (включая проекцию) обозначим как $H_t$, при этом $\lambda(H_t) \in [c_{min}, c_{max}]$.
+
+\begin{theorem}[Сходимость Proximal GaLore Adam]
+\label{thm:main_convergence}
+Пусть выполнены Условия \ref{assum:smoothness}--\ref{assum:bounded_gradients}. Если оптимизатор использует шаг $\eta_t = \frac{\eta}{\sqrt{T}}$ и расписание порога SVT $\lambda_t = \frac{c}{t^2}$, то после $T$ итераций выполняется:
+\begin{equation}
+    \min_{t \in [1, T]} \E\left[\norm{\nabla f(w_t)}^2\right] \le \mathcal{O}\left( \frac{f(w_1) - f^*}{\sqrt{T}} \right) + \mathcal{O}\left( \frac{\sigma^2}{\sqrt{T}} \right) + \mathcal{O}\left( \frac{C_{\epsilon}}{T} \right)
+\end{equation}
+где $C_{\epsilon}$ --- константа, ограничивающая суммарную ошибку проксимального оператора.
+\end{theorem}
+
+\section{Доказательство}
+
+\begin{proof}
+Шаг алгоритма задается уравнением: $w_{t+1} = w_t - \eta_t H_t \tilde{g}_t$.
+
+\subsection*{Шаг 1: Лемма об убывании (Descent Lemma)}
+Используя Условие \ref{assum:smoothness}, запишем фундаментальное неравенство:
+\begin{equation}
+    f(w_{t+1}) \le f(w_t) + \inner{\nabla f(w_t)}{w_{t+1} - w_t} + \frac{L}{2} \norm{w_{t+1} - w_t}^2
+\end{equation}
+Подставляя шаг обновления, получаем:
+\begin{equation}
+\label{eq:descent}
+    f(w_{t+1}) \le f(w_t) - \eta_t \inner{\nabla f(w_t)}{H_t \tilde{g}_t} + \frac{L \eta_t^2}{2} \norm{H_t \tilde{g}_t}^2
+\end{equation}
+
+Зафиксируем $w_t$ и возьмем условное математическое ожидание $\E_t[\cdot]$ по случайности мини-батча на шаге $t$. Значения $f(w_t)$ и $\nabla f(w_t)$ являются детерминированными при условии известной истории до шага $t$, поэтому мы можем вынести их из-под знака ожидания:
+\begin{equation}
+    \E_t [f(w_{t+1})] \le f(w_t) - \eta_t \inner{\nabla f(w_t)}{H_t \E_t[\tilde{g}_t]} + \frac{L \eta_t^2}{2} \E_t\left[\norm{H_t \tilde{g}_t}^2\right]
+\end{equation}
+
+Поскольку $\tilde{g}_t = g_t + \epsilon_t$, а стохастический градиент является несмещенной оценкой (Условие \ref{assum:variance}), мы имеем $\E_t[g_t] = \nabla f(w_t)$. Отсюда следует, что ожидание возмущенного градиента равно $\E_t[\tilde{g}_t] = \nabla f(w_t) + \E_t[\epsilon_t]$. 
+
+\subsection*{Шаг 2: Изоляция ошибки SVT-оператора}
+Рассмотрим линейный член из уравнения \eqref{eq:descent}. Подставив ожидание, имеем:
+\begin{equation}
+    \E_t[\inner{\nabla f(w_t)}{H_t \tilde{g}_t}] = \inner{\nabla f(w_t)}{H_t \nabla f(w_t)} + \E_t[\inner{\nabla f(w_t)}{H_t \epsilon_t}]
+\end{equation}
+
+Так как минимальное собственное значение матрицы предобуславливания $H_t$ равно $c_{min}$, первое слагаемое строго ограничено снизу:
+\begin{equation}
+    \inner{\nabla f(w_t)}{H_t \nabla f(w_t)} \ge c_{min} \norm{\nabla f(w_t)}^2
+\end{equation}
+
+Для оценки второго слагаемого применим неравенство Юнга $\inner{a}{b} \ge -\frac{\alpha}{2}\norm{a}^2 - \frac{1}{2\alpha}\norm{b}^2$. Выбрав параметр $\alpha = c_{min}$, положим $a = \nabla f(w_t)$ и $b = H_t \epsilon_t$:
+\begin{equation}
+    \E_t[\inner{\nabla f(w_t)}{H_t \epsilon_t}] \ge -\frac{c_{min}}{2} \norm{\nabla f(w_t)}^2 - \frac{1}{2 c_{min}} \E_t\left[\norm{H_t \epsilon_t}^2\right]
+\end{equation}
+
+Учитывая свойство операторной нормы $\norm{H_t \epsilon_t}^2 \le c_{max}^2 \norm{\epsilon_t}^2$ и объединяя оценки, получаем ограничение для линейного члена:
+\begin{equation}
+\label{eq:linear_bound}
+    \E_t[\inner{\nabla f(w_t)}{H_t \tilde{g}_t}] \ge \frac{c_{min}}{2} \norm{\nabla f(w_t)}^2 - \frac{c_{max}^2}{2 c_{min}} \E_t[\norm{\epsilon_t}^2]
+\end{equation}
+
+\subsection*{Шаг 3: Ограничение квадратичного штрафа (Variance Bound)}
+Теперь оценим норму полного шага $\norm{H_t \tilde{g}_t}^2$.
+Используя свойство $\norm{H_t \tilde{g}_t}^2 \le c_{max}^2 \norm{\tilde{g}_t}^2$, представим возмущенный стохастический градиент как сумму трех компонент: $\tilde{g}_t = \nabla f(w_t) + (g_t - \nabla f(w_t)) + \epsilon_t$.
+
+Применяя неравенство $\norm{a+b+c}^2 \le 3\norm{a}^2 + 3\norm{b}^2 + 3\norm{c}^2$, получаем:
+\begin{equation}
+    \norm{\tilde{g}_t}^2 \le 3\norm{\nabla f(w_t)}^2 + 3\norm{g_t - \nabla f(w_t)}^2 + 3\norm{\epsilon_t}^2
+\end{equation}
+
+Беря математическое ожидание $\E_t[\cdot]$ и используя Условие \ref{assum:variance} для ограничения дисперсии ($\E_t[\norm{g_t - \nabla f(w_t)}^2] \le \sigma^2$), приходим к следующей оценке:
+\begin{equation}
+\label{eq:variance_bound}
+    \E_t[\norm{H_t \tilde{g}_t}^2] \le 3 c_{max}^2 \left( \norm{\nabla f(w_t)}^2 + \sigma^2 + \E_t[\norm{\epsilon_t}^2] \right)
+\end{equation}
+
+\subsection*{Шаг 4: Сборка и телескопическая сумма}
+Подставим \eqref{eq:linear_bound} и \eqref{eq:variance_bound} обратно в лемму об убывании и сгруппируем коэффициенты перед квадратом нормы градиента:
+\begin{align}
+    \E_t [f(w_{t+1})] \le f(w_t) &- \eta_t \left( \frac{c_{min}}{2} - \frac{3 L \eta_t c_{max}^2}{2} \right) \norm{\nabla f(w_t)}^2 \nonumber \\
+    &+ \frac{3 L \eta_t^2 c_{max}^2}{2} \sigma^2 \nonumber \\
+    &+ \eta_t \left( \frac{c_{max}^2}{2 c_{min}} + \frac{3 L \eta_t c_{max}^2}{2} \right) \E_t[\norm{\epsilon_t}^2]
+\end{align}
+
+Чтобы гарантировать, что коэффициент при $\norm{\nabla f(w_t)}^2$ строго положителен, наложим условие на величину шага $\eta_t$. Потребуем, чтобы $\frac{3 L \eta_t c_{max}^2}{2} \le \frac{c_{min}}{4}$, что влечет $\eta_t \le \frac{c_{min}}{6 L c_{max}^2}$. При таком выборе шага коэффициент перед градиентом ограничен снизу константой $\frac{c_{min}}{4}$. 
+
+Перенеся градиент в левую часть и переобозначив константу перед ошибкой как $C_1$, получим:
+\begin{equation}
+    \frac{\eta_t c_{min}}{4} \norm{\nabla f(w_t)}^2 \le f(w_t) - \E_t [f(w_{t+1})] + \frac{3 L \eta_t^2 c_{max}^2}{2} \sigma^2 + \eta_t C_1 \E_t[\norm{\epsilon_t}^2]
+\end{equation}
+
+Беря полное математическое ожидание $\E[\cdot]$ (по всем шагам алгоритма), суммируя неравенство от $t=1$ до $T$ и деля на сумму $\sum_{t=1}^T \eta_t$, мы приходим к финальной телескопической оценке:
+\begin{equation}
+    \frac{1}{T} \sum_{t=1}^T \E[\norm{\nabla f(w_t)}^2] \le \mathcal{O}\left( \frac{f(w_1) - f^*}{\sqrt{T}} \right) + \mathcal{O}\left( \frac{\sigma^2}{\sqrt{T}} \right) + \mathcal{O}\left( \frac{1}{T} \sum_{t=1}^T \E[\norm{\epsilon_t}^2] \right)
+\end{equation}
+
+Так как расписание порога задано как $\lambda_t = \frac{c}{t^2}$, квадратичная ошибка во Фробениусовой норме ограничена $\E[\norm{\epsilon_t}^2] \le d \cdot \frac{c^2}{t^4}$.
+Сумма ряда $\sum_{t=1}^T \frac{1}{t^4}$ сходится к константе. Следовательно, влияние ошибки SVT-оператора убывает со скоростью $\mathcal{O}(1/T)$, что завершает доказательство.
+
+\end{proof}
+
+\end{document}
