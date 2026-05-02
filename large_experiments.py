@@ -188,7 +188,7 @@ def train_one_run(
     train_loader: DataLoader,
     test_loader: DataLoader,
     epochs: int,
-) -> Tuple[Dict[str, float], List[float]]:
+) -> Tuple[Dict[str, float], List[float], List[float]]:
     criterion = nn.CrossEntropyLoss()
     model.to(DEVICE)
 
@@ -196,6 +196,7 @@ def train_one_run(
     total_steps = 0
     last_loss = 0.0
     epoch_losses: List[float] = []
+    epoch_mem_mb: List[float] = []
 
     for epoch in range(epochs):
         model.train()
@@ -212,6 +213,7 @@ def train_one_run(
             running_loss += loss.item() * images.size(0)
             total_steps += 1
         epoch_losses.append(running_loss / len(train_loader.dataset))
+        epoch_mem_mb.append(compute_memory_footprint(optimizer)["total_mb"])
 
     total_time = time.perf_counter() - start_time
     train_acc = evaluate(model, train_loader)
@@ -228,7 +230,7 @@ def train_one_run(
         "mem_mb": mem["total_mb"],
     }
 
-    return metrics, epoch_losses
+    return metrics, epoch_losses, epoch_mem_mb
 
 
 def plot_loss_curve(losses: List[float], out_path: str, title: str) -> None:
@@ -236,6 +238,18 @@ def plot_loss_curve(losses: List[float], out_path: str, title: str) -> None:
     ax.plot(range(1, len(losses) + 1), losses, marker="o")
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Train Loss")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_memory_curve(mem_mb: List[float], out_path: str, title: str) -> None:
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(range(1, len(mem_mb) + 1), mem_mb, marker="o")
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Optimizer State (MB)")
     ax.set_title(title)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -336,7 +350,7 @@ def run_sweep(args) -> None:
                         opt_name, model.parameters(), args.lr, args.weight_decay, cfg
                     )
 
-                    metrics, losses = train_one_run(
+                    metrics, losses, mem_mb = train_one_run(
                         model, optimizer, train_loader, test_loader, args.epochs
                     )
 
@@ -365,6 +379,13 @@ def run_sweep(args) -> None:
                     plot_loss_curve(
                         losses,
                         plot_path,
+                        title=f"{dataset_name} {model_name} {opt_name} seed={seed}",
+                    )
+
+                    mem_plot_path = os.path.join(args.results_dir, "runs", f"{run_id}_mem.png")
+                    plot_memory_curve(
+                        mem_mb,
+                        mem_plot_path,
                         title=f"{dataset_name} {model_name} {opt_name} seed={seed}",
                     )
 
