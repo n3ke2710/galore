@@ -134,6 +134,9 @@ class ProximalGaLoreProjector:
         self._sv_history: list = []
         self._rank_history: list = []
         self._thresholded_sv: Optional[torch.Tensor] = None
+        self._basis_updated: bool = False
+        self._prev_ortho_matrix: Optional[torch.Tensor] = None
+        self._prev_full_shape: Optional[Tuple[int, ...]] = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -182,17 +185,27 @@ class ProximalGaLoreProjector:
         _, S, _ = torch.linalg.svd(grad.detach(), full_matrices=False)
         return S
 
+    def consume_prev_basis(self) -> Tuple[Optional[torch.Tensor], Optional[Tuple[int, ...]]]:
+        """Return previous basis info and reset the update flag."""
+        if not self._basis_updated:
+            return None, None
+        self._basis_updated = False
+        return self._prev_ortho_matrix, self._prev_full_shape
+
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
 
     def _maybe_update_projection(self, grad: torch.Tensor) -> None:
         if self.ortho_matrix is None or self.step % self.update_freq == 0:
+            self._prev_ortho_matrix = self.ortho_matrix
+            self._prev_full_shape = self._full_shape
             self.ortho_matrix, self.effective_rank, self._thresholded_sv = (
                 self._compute_projection(grad)
             )
             self._full_shape = grad.shape
             self._rank_history.append(self.effective_rank)
+            self._basis_updated = True
 
     def _compute_projection(
         self, grad: torch.Tensor

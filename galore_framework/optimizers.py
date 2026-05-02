@@ -370,9 +370,25 @@ class ProximalGaLoreAdamW(Optimizer):
         low_rank_grad = proj.project(grad)
 
         # Init / resize optimizer states in low-rank space
-        if "exp_avg" not in state or state["exp_avg"].shape != low_rank_grad.shape:
+        if "exp_avg" not in state:
             state["exp_avg"] = torch.zeros_like(low_rank_grad)
             state["exp_avg_sq"] = torch.zeros_like(low_rank_grad)
+        elif state["exp_avg"].shape != low_rank_grad.shape:
+            prev_ortho, prev_shape = proj.consume_prev_basis()
+            if prev_ortho is not None and prev_shape is not None:
+                if prev_shape[0] >= prev_shape[1]:
+                    full_exp_avg = prev_ortho @ state["exp_avg"]
+                    full_exp_avg_sq = prev_ortho @ state["exp_avg_sq"]
+                    state["exp_avg"] = proj.ortho_matrix.T @ full_exp_avg
+                    state["exp_avg_sq"] = proj.ortho_matrix.T @ full_exp_avg_sq
+                else:
+                    full_exp_avg = state["exp_avg"] @ prev_ortho.T
+                    full_exp_avg_sq = state["exp_avg_sq"] @ prev_ortho.T
+                    state["exp_avg"] = full_exp_avg @ proj.ortho_matrix
+                    state["exp_avg_sq"] = full_exp_avg_sq @ proj.ortho_matrix
+            else:
+                state["exp_avg"] = torch.zeros_like(low_rank_grad)
+                state["exp_avg_sq"] = torch.zeros_like(low_rank_grad)
 
         exp_avg = state["exp_avg"]
         exp_avg_sq = state["exp_avg_sq"]
