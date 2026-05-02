@@ -59,7 +59,7 @@ UPDATE_PROJ_GAP = 100
 GALORE_SCALE = 1.0
 
 # Proximal GaLore Params
-SVT_THRESHOLD = 0.05
+SVT_THRESHOLD = 0.03
 MIN_RANK = 4
 
 # ======================================================================
@@ -204,9 +204,9 @@ def train_mnist(model, optimizer, train_loader, test_loader, epochs, tracker, mo
 
 def plot_mnist_benchmark(results: Dict[str, TrainingTracker], model_tag: str, save_dir: str):
     """
-    Consolidated 3x2 grid of plots.
+    Consolidated 4x2 grid of plots.
     """
-    fig, axes = plt.subplots(3, 2, figsize=(16, 18))
+    fig, axes = plt.subplots(4, 2, figsize=(16, 24))
     fig.suptitle(f"MNIST Benchmark: {model_tag}", fontsize=20, fontweight='bold')
     
     colors = {"AdamW": "#2196F3", "GaLore AdamW": "#FF9800", "Proximal GaLore": "#4CAF50"}
@@ -279,6 +279,20 @@ def plot_mnist_benchmark(results: Dict[str, TrainingTracker], model_tag: str, sa
     ax.set_ylabel("Accuracy (%)")
     ax.legend()
     ax.grid(True, alpha=0.3)
+
+    # 7. Optimizer State Memory vs Epochs
+    ax = axes[3, 0]
+    for name, tracker in results.items():
+        if len(tracker.memory_history) > 0:
+            ax.plot(range(1, len(tracker.memory_history) + 1), tracker.memory_history, label=name, marker='o', color=colors.get(name))
+    ax.set_title("Optimizer State Memory vs Epochs")
+    ax.set_xlabel("Epochs")
+    ax.set_ylabel("Memory (MB)")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    # Hide the 8th subplot
+    axes[3, 1].axis('off')
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     path = os.path.join(save_dir, f"{model_tag.lower()}_benchmark.png")
@@ -367,7 +381,7 @@ def main():
         
         # Also save memory and summary
         print(f"\nSummary for {arch_name}:")
-        print(f"{'Method':<20} {'Test Acc (%)':>15} {'Mem Avg (MB)':>15} {'Mem Peak (MB)':>15} {'Mem Final (MB)':>15}")
+        print(f"{'Method':<20} {'Test Acc (%)':>15} {'Mem Avg (MB)':>15} {'Mem Peak (MB)':>15} {'Mem Final (MB)':>15} {'Time (s)':>15}")
         for name, tracker in results.items():
             if len(tracker.memory_history) > 0:
                 avg_mem = sum(tracker.memory_history) / len(tracker.memory_history)
@@ -377,7 +391,8 @@ def main():
                 # Fallback if history is empty for some reason
                 avg_mem = peak_mem = final_mem = memory_results[name]
                 
-            print(f"{name:<20} {tracker.test_accuracies[-1]:>15.2f} {avg_mem:>15.3f} {peak_mem:>15.3f} {final_mem:>15.3f}")
+            total_time = tracker.times[-1] if len(tracker.times) > 0 else 0.0
+            print(f"{name:<20} {tracker.test_accuracies[-1]:>15.2f} {avg_mem:>15.3f} {peak_mem:>15.3f} {final_mem:>15.3f} {total_time:>15.1f}")
 
 if __name__ == "__main__":
     main()
