@@ -183,6 +183,10 @@ def train_mnist(model, optimizer, train_loader, test_loader, epochs, tracker, mo
         test_acc = evaluate(model, test_loader)
         tracker.log_accuracies(train_acc, test_acc)
         
+        # Track memory at the end of each epoch
+        mem_mb = compute_memory_footprint(optimizer)["total_mb"]
+        tracker.log_memory(mem_mb)
+        
         # GaLore Ranks
         ranks = collect_projector_ranks(optimizer)
         for name, r in ranks.items():
@@ -363,9 +367,17 @@ def main():
         
         # Also save memory and summary
         print(f"\nSummary for {arch_name}:")
-        print(f"{'Method':<20} {'Test Acc (%)':>15} {'State Mem (MB)':>15}")
+        print(f"{'Method':<20} {'Test Acc (%)':>15} {'Mem Avg (MB)':>15} {'Mem Peak (MB)':>15} {'Mem Final (MB)':>15}")
         for name, tracker in results.items():
-            print(f"{name:<20} {tracker.test_accuracies[-1]:>15.2f} {memory_results[name]:>15.3f}")
+            if len(tracker.memory_history) > 0:
+                avg_mem = sum(tracker.memory_history) / len(tracker.memory_history)
+                peak_mem = max(tracker.memory_history)
+                final_mem = tracker.memory_history[-1]
+            else:
+                # Fallback if history is empty for some reason
+                avg_mem = peak_mem = final_mem = memory_results[name]
+                
+            print(f"{name:<20} {tracker.test_accuracies[-1]:>15.2f} {avg_mem:>15.3f} {peak_mem:>15.3f} {final_mem:>15.3f}")
 
 if __name__ == "__main__":
     main()

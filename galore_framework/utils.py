@@ -43,7 +43,7 @@ class TrainingTracker:
     arg_dist_start: List[float] = field(default_factory=list)
     ranks: Dict[str, List[int]] = field(default_factory=dict)
     singular_values: Dict[str, List[torch.Tensor]] = field(default_factory=dict)
-    memory: Dict[str, float] = field(default_factory=dict)
+    memory_history: List[float] = field(default_factory=list)
     grad_norms: List[float] = field(default_factory=list)
 
     def log_loss(self, loss: float, time_val: Optional[float] = None) -> None:
@@ -77,6 +77,9 @@ class TrainingTracker:
         if layer_name not in self.singular_values:
             self.singular_values[layer_name] = []
         self.singular_values[layer_name].append(sv.cpu().detach())
+
+    def log_memory(self, memory_mb: float) -> None:
+        self.memory_history.append(memory_mb)
 
 
 def compute_memory_footprint(optimizer: torch.optim.Optimizer) -> Dict[str, Any]:
