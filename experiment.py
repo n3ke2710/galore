@@ -25,6 +25,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 from galore_framework import (
     StandardAdamW,
@@ -146,8 +147,9 @@ def train_mnist(model, optimizer, train_loader, test_loader, epochs, tracker, mo
     for epoch in range(epochs):
         model.train()
         epoch_loss = 0.0
-        
-        for images, labels in train_loader:
+
+        progress = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False, dynamic_ncols=True)
+        for images, labels in progress:
             images, labels = images.to(DEVICE), labels.to(DEVICE)
             
             optimizer.zero_grad()

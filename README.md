@@ -59,6 +59,14 @@ pip install -r requirements.txt
 python3 experiment.py
 ```
 
+### 2b. Трансформер на WikiText-2
+
+```bash
+python3 transformer_experiment.py --opt adamw
+python3 transformer_experiment.py --opt galore
+python3 transformer_experiment.py --opt prox
+```
+
 Скрипт:
 - Генерирует синтетический датасет (4096 примеров, 256 признаков, 10 классов)
 - Обучает MLP (256→512→512→256→10) тремя оптимизаторами
