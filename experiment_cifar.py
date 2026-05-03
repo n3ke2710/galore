@@ -21,6 +21,12 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
+try:
+    from datasets import load_dataset
+except ImportError:
+    print("Please install 'datasets' package: pip install datasets")
+    # Fallback/mock if running locally without it, but user is on Colab
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -59,8 +65,27 @@ SVT_THRESHOLD = 0.03  # Relative threshold (3% of max singular value)
 MIN_RANK = 4
 
 # ======================================================================
-#  Model
+#  Model & Dataset
 # ======================================================================
+
+class CIFAR10HFDataset(torch.utils.data.Dataset):
+    """Wrapper to use HuggingFace datasets with torchvision transforms."""
+    def __init__(self, hf_dataset, transform=None):
+        self.hf_dataset = hf_dataset
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.hf_dataset)
+
+    def __getitem__(self, idx):
+        item = self.hf_dataset[idx]
+        image = item['img']
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        label = item['label']
+        if self.transform:
+            image = self.transform(image)
+        return image, label
 
 def get_resnet18_cifar10():
     """Adapts standard ResNet-18 for 32x32 CIFAR-10 images."""
@@ -257,9 +282,6 @@ def main():
     os.makedirs(RESULTS_DIR, exist_ok=True)
     torch.manual_seed(SEED)
 
-    # Patch CIFAR-10 URL to avoid "HTTP Error 503: Service Unavailable" from cs.toronto.edu
-    torchvision.datasets.CIFAR10.url = "https://ossci-datasets.s3.amazonaws.com/cifar/cifar-10-python.tar.gz"
-
     # Data Augmentation for CIFAR-10
     transform_train = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
@@ -272,8 +294,10 @@ def main():
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
     ])
     
-    train_cifar_data = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
-    test_cifar_data = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
+    print("Loading CIFAR-10 from Hugging Face Datasets...")
+    hf_dataset = load_dataset("cifar10")
+    train_cifar_data = CIFAR10HFDataset(hf_dataset["train"], transform=transform_train)
+    test_cifar_data = CIFAR10HFDataset(hf_dataset["test"], transform=transform_test)
     
     train_loader = DataLoader(train_cifar_data, batch_size=BATCH_SIZE, shuffle=True, num_workers=2, pin_memory=True)
     test_loader = DataLoader(test_cifar_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=2, pin_memory=True)
