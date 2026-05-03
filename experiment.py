@@ -20,6 +20,7 @@ import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 import matplotlib
 matplotlib.use("Agg")
@@ -50,13 +51,13 @@ RESULTS_DIR = "results"
 # Training Hyperparams
 EPOCHS = 10
 BATCH_SIZE = 128
-LR = 1e-3
-WEIGHT_DECAY = 0.01
+LR = 5e-3
+WEIGHT_DECAY = 1e-3
 
 # GaLore Params
-GALORE_RANK = 32
-UPDATE_PROJ_GAP = 100
-GALORE_SCALE = 1.0
+GALORE_RANK = 64
+UPDATE_PROJ_GAP = 250
+GALORE_SCALE = 0.25
 
 # Proximal GaLore Params
 SVT_THRESHOLD = 0.03
@@ -138,6 +139,8 @@ def train_mnist(model, optimizer, train_loader, test_loader, epochs, tracker, mo
     initial_model = copy.deepcopy(model)
     prev_model = copy.deepcopy(model)
     
+    scheduler = CosineAnnealingLR(optimizer, T_max=epochs * len(train_loader))
+    
     start_time = time.perf_counter()
     global_step = 0
     
@@ -159,6 +162,7 @@ def train_mnist(model, optimizer, train_loader, test_loader, epochs, tracker, mo
             # Note: We compute this BEFORE step for w_{k-1} or AFTER for w_k.
             # Usually we take the step, then compare.
             optimizer.step()
+            scheduler.step()
             
             elapsed = time.perf_counter() - start_time
             
