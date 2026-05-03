@@ -257,6 +257,9 @@ def main():
     os.makedirs(RESULTS_DIR, exist_ok=True)
     torch.manual_seed(SEED)
 
+    # Patch CIFAR-10 URL to avoid "HTTP Error 503: Service Unavailable" from cs.toronto.edu
+    torchvision.datasets.CIFAR10.url = "https://ossci-datasets.s3.amazonaws.com/cifar/cifar-10-python.tar.gz"
+
     # Data Augmentation for CIFAR-10
     transform_train = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
