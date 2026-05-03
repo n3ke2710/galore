@@ -106,7 +106,7 @@ class ProximalGaLoreProjector:
     Parameters
     ----------
     threshold : float
-        Soft-thresholding parameter λ for SVT.
+        Relative soft-thresholding multiplier λ for SVT (threshold = λ * σ_max).
     update_freq : int
         How often (in optimizer steps) to recompute the projection basis.
     scale : float
@@ -201,8 +201,10 @@ class ProximalGaLoreProjector:
         U, S, Vh = torch.linalg.svd(grad.detach(), full_matrices=False)
         self._sv_history.append(S.cpu())
 
-        # Soft thresholding  σ → max(σ − λ, 0)
-        S_thresh = torch.relu(S - self.threshold)
+        # Adaptive (relative) soft thresholding: σ → max(σ − λ * σ_max, 0)
+        actual_threshold = self.threshold * S[0] if len(S) > 0 else self.threshold
+        S_thresh = torch.relu(S - actual_threshold)
+        
         mask = S_thresh > 0
         eff_rank = max(int(mask.sum().item()), self.min_rank)
 

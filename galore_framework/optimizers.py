@@ -292,7 +292,7 @@ class ProximalGaLoreAdamW(Optimizer):
     weight_decay : float
         Decoupled weight decay coefficient.
     threshold : float
-        Soft-thresholding parameter λ for SVT.
+        Relative soft-thresholding multiplier λ for SVT (threshold = λ * σ_max).
     update_proj_gap : int
         How often (steps) to recompute the projection via SVD + SVT.
     galore_scale : float
