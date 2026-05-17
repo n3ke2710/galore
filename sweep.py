@@ -171,12 +171,15 @@ if __name__ == "__main__":
         lr=5e-5,
         weight_decay=0.01,
         seed=42,
+        rank=128,          # Default value, overridden in sweep
+        threshold=0.05,    # Default value, overridden in sweep
         update_proj_gap=200,
         galore_scale=1.0,
         min_rank=4,
         block_size=256,
         batch_size=16,
-        model_size="124M" # Change to 'tiny' for quick local tests
+        log_every=25,
+        model_size="124M"  # Change to 'tiny' for quick local tests
     )
 
     if not args.plot_only:
