@@ -214,8 +214,10 @@ class ProximalGaLoreProjector:
         U, S, Vh = torch.linalg.svd(grad.detach(), full_matrices=False)
         self._sv_history.append(S.cpu())
 
-        # Soft thresholding  σ → max(σ − λ, 0)
-        S_thresh = torch.relu(S - self.threshold)
+        # Relative soft thresholding: scale threshold by the max singular value
+        # This prevents rank collapse as gradient norms decay during training.
+        threshold_val = self.threshold * S[0]
+        S_thresh = torch.relu(S - threshold_val)
         mask = S_thresh > 0
         eff_rank = max(int(mask.sum().item()), self.min_rank)
 

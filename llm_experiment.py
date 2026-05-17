@@ -100,12 +100,16 @@ def load_wikitext2(block_size: int = 256, batch_size: int = 16):
 # =====================================================================
 #  2. Model
 # =====================================================================
-def build_gpt2():
+def build_gpt2(model_size: str = "124M"):
     from transformers import GPT2LMHeadModel, GPT2Config
-    config = GPT2Config()  # 124M
+    if model_size == "tiny":
+        # 2 layers, 4 heads, 128 hidden size (for fast local tests)
+        config = GPT2Config(n_layer=2, n_head=4, n_embd=128)
+    else:
+        config = GPT2Config()  # default 124M
     model = GPT2LMHeadModel(config)
     n = sum(p.numel() for p in model.parameters())
-    logger.info("[model] GPT-2 params: %s", f"{n:,}")
+    logger.info("[model] GPT-2 %s params: %s", model_size, f"{n:,}")
     return model
 
 def make_param_groups(model: nn.Module):
@@ -169,7 +173,7 @@ def train_single(opt_name: str, loader: DataLoader, args, results_dir: str):
     os.makedirs(sub_dir, exist_ok=True)
 
     seed_everything(args.seed)
-    model = build_gpt2().to(DEVICE)
+    model = build_gpt2(args.model_size).to(DEVICE)
 
     optimizer, galore_names = build_optimizer(
         opt_name, model, lr=args.lr, wd=args.weight_decay,
@@ -499,7 +503,7 @@ def parse_args():
     p.add_argument("--results-dir", type=str, default=RESULTS_DIR)
     p.add_argument("--optimizers", type=str, default="adamw,galore,prox",
                    help="Comma-separated: adamw,galore,prox")
-    # Scale: 3 epochs × ~2000 steps/epoch × 3 opts ≈ 18k steps → ~1-2h on H200
+    p.add_argument("--model-size", type=str, default="124M", choices=["124M", "tiny"])
     p.add_argument("--epochs", type=int, default=3)
     p.add_argument("--log-every", type=int, default=25)
     p.add_argument("--lr", type=float, default=5e-5)
