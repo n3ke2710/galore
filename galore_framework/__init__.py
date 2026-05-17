@@ -8,7 +8,12 @@ Implements:
 
 from .projector import GaLoreProjector, ProximalGaLoreProjector
 from .optimizers import StandardAdamW, GaLoreAdamW, ProximalGaLoreAdamW
-from .utils import TrainingTracker, compute_memory_footprint
+from .utils import (
+    TrainingTracker,
+    compute_memory_footprint,
+    collect_projector_ranks,
+    collect_rank_histories,
+)
 
 __all__ = [
     "GaLoreProjector",
@@ -18,4 +23,6 @@ __all__ = [
     "ProximalGaLoreAdamW",
     "TrainingTracker",
     "compute_memory_footprint",
+    "collect_projector_ranks",
+    "collect_rank_histories",
 ]

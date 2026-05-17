@@ -4,3 +4,6 @@ torchtext>=0.15
 tqdm>=4.66
 matplotlib>=3.7
 numpy>=1.24
+transformers>=4.36
+datasets>=2.16
+accelerate>=0.25
