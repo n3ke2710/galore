@@ -15,7 +15,7 @@ import json
 import os
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 
 import torch
 import torch.nn as nn
@@ -197,6 +197,8 @@ def train_one_run(
     last_loss = 0.0
     epoch_losses: List[float] = []
     epoch_mem_mb: List[float] = []
+    epoch_times: List[float] = []
+    epoch_test_acc: List[float] = []
 
     for epoch in range(epochs):
         model.train()
@@ -213,6 +215,10 @@ def train_one_run(
             running_loss += loss.item() * images.size(0)
             total_steps += 1
         epoch_losses.append(running_loss / len(train_loader.dataset))
+        elapsed = time.perf_counter() - start_time
+        epoch_times.append(elapsed)
+        test_acc_epoch = evaluate(model, test_loader)
+        epoch_test_acc.append(test_acc_epoch)
         epoch_mem_mb.append(compute_memory_footprint(optimizer)["total_mb"])
 
     total_time = time.perf_counter() - start_time
@@ -230,7 +236,7 @@ def train_one_run(
         "mem_mb": mem["total_mb"],
     }
 
-    return metrics, epoch_losses, epoch_mem_mb
+    return metrics, epoch_losses, epoch_mem_mb, epoch_times, epoch_test_acc
 
 
 def plot_loss_curve(losses: List[float], out_path: str, title: str) -> None:
@@ -250,6 +256,41 @@ def plot_memory_curve(mem_mb: List[float], out_path: str, title: str) -> None:
     ax.plot(range(1, len(mem_mb) + 1), mem_mb, marker="o")
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Optimizer State (MB)")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+def plot_loss_vs_time(times, losses, out_path, title):
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(times, losses, marker="o")
+    ax.set_xlabel("Wall-clock time (s)")
+    ax.set_ylabel("Train Loss")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_accuracy_vs_time(times, accs, out_path, title):
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(times, accs, marker="o")
+    ax.set_xlabel("Wall-clock time (s)")
+    ax.set_ylabel("Test Accuracy (%)")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_memory_vs_time(times, mem_mb, out_path, title):
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(times, mem_mb, marker="o")
+    ax.set_xlabel("Wall-clock time (s)")
+    ax.set_ylabel("Optimizer State Memory (MB)")
     ax.set_title(title)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -313,11 +354,37 @@ def make_sweep_grid() -> List[Dict[str, float]]:
 def ensure_dir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
 
+SUMMARY_FIELDS = [
+    "dataset",
+    "model",
+    "optimizer",
+    "seed",
+    "lr",
+    "weight_decay",
+    "epochs",
+    "batch_size",
+    "rank",
+    "threshold",
+    "min_rank",
+    "update_proj_gap",
+    "galore_scale",
+    "train_acc",
+    "test_acc",
+    "final_loss",
+    "time_sec",
+    "steps",
+    "mem_mb",
+]
 
-def write_summary_row(csv_path: str, row: Dict[str, float]) -> None:
+def write_summary_row(csv_path: str, row: Dict[str, Any]) -> None:
+    os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+
     exists = os.path.exists(csv_path)
     with open(csv_path, "a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+        for field in SUMMARY_FIELDS:
+            row.setdefault(field, "")
+
+        writer = csv.DictWriter(f, fieldnames=SUMMARY_FIELDS)
         if not exists:
             writer.writeheader()
         writer.writerow(row)
@@ -350,7 +417,7 @@ def run_sweep(args) -> None:
                         opt_name, model.parameters(), args.lr, args.weight_decay, cfg
                     )
 
-                    metrics, losses, mem_mb = train_one_run(
+                    metrics, losses, mem_mb, times, test_accs = train_one_run(
                         model, optimizer, train_loader, test_loader, args.epochs
                     )
 
@@ -387,6 +454,27 @@ def run_sweep(args) -> None:
                         mem_mb,
                         mem_plot_path,
                         title=f"{dataset_name} {model_name} {opt_name} seed={seed}",
+                    )
+
+                    plot_loss_vs_time(
+                        times,
+                        losses,
+                        os.path.join(args.results_dir, "runs", f"{run_id}_loss_vs_time.png"),
+                        title=f"{dataset_name} {model_name} {opt_name} loss vs time",
+                    )
+
+                    plot_accuracy_vs_time(
+                        times,
+                        test_accs,
+                        os.path.join(args.results_dir, "runs", f"{run_id}_acc_vs_time.png"),
+                        title=f"{dataset_name} {model_name} {opt_name} accuracy vs time",
+                    )
+
+                    plot_memory_vs_time(
+                        times,
+                        mem_mb,
+                        os.path.join(args.results_dir, "runs", f"{run_id}_mem_vs_time.png"),
+                        title=f"{dataset_name} {model_name} {opt_name} memory vs time",
                     )
 
                     print(
