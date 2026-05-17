@@ -18,7 +18,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 # Reuse the training logic from the main script
-from llm_experiment import train_single, load_wikitext2, setup_logging, logger, _apply_style, OPT_META
+from llm_experiment import (
+    train_single, load_wikitext2, setup_logging, logger, 
+    _apply_style, OPT_META, plot_rank_heatmap
+)
 
 class DummyArgs:
     def __init__(self, **kwargs):
@@ -104,6 +107,18 @@ def plot_sweep_results(sweep_dir: str):
             "loss_curve": [m["loss"] for m in metrics],
             "steps": [m["step"] for m in metrics],
         })
+
+        # Generate Rank Heatmap for this specific run
+        rank_hist = os.path.join(actual_d, "rank_history.json")
+        if os.path.exists(rank_hist):
+            # plot_rank_heatmap looks in d/opt
+            # d is results/sweep/prox_thresh0.05, opt is prox -> actual_d
+            plot_rank_heatmap(d, plots_dir, opt)
+            # rename to avoid overwriting (e.g. rank_heatmap_prox.png -> rank_heatmap_prox_thresh0.05.png)
+            old_heat = os.path.join(plots_dir, f"rank_heatmap_{opt}.png")
+            new_heat = os.path.join(plots_dir, f"rank_heatmap_{name}.png")
+            if os.path.exists(old_heat):
+                os.rename(old_heat, new_heat)
 
     if not results:
         logger.warning("No results found to plot.")
