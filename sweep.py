@@ -63,9 +63,12 @@ def plot_sweep_results(sweep_dir: str):
 
     results = []
     
-    # Read all subdirectories
-    for d in glob.glob(os.path.join(sweep_dir, "*/")):
-        if "plots" in d: continue
+    # Read all subdirectories robustly
+    for d_name in os.listdir(sweep_dir):
+        d = os.path.join(sweep_dir, d_name)
+        if not os.path.isdir(d) or d_name == "plots": 
+            continue
+            
         cfg_path = os.path.join(d, "config.json")
         met_path = os.path.join(d, "metrics.json")
         if not os.path.exists(cfg_path) or not os.path.exists(met_path):
