@@ -69,8 +69,17 @@ def plot_sweep_results(sweep_dir: str):
         if not os.path.isdir(d) or d_name == "plots": 
             continue
             
-        cfg_path = os.path.join(d, "config.json")
-        met_path = os.path.join(d, "metrics.json")
+        # train_single artificially appends opt_name to the results_dir,
+        # so the actual files are inside a nested subfolder (e.g., galore_rank16/galore/)
+        subfolders = [f for f in os.listdir(d) if os.path.isdir(os.path.join(d, f))]
+        if not subfolders:
+            # Fallback if somehow they are in the root
+            actual_d = d
+        else:
+            actual_d = os.path.join(d, subfolders[0])
+            
+        cfg_path = os.path.join(actual_d, "config.json")
+        met_path = os.path.join(actual_d, "metrics.json")
         if not os.path.exists(cfg_path) or not os.path.exists(met_path):
             continue
             
